@@ -21,6 +21,14 @@ class HomeTableViewController: UITableViewController {
         // reload tweets
         tweetRefreshControl.addTarget(self, action: #selector(loadTweets), for: .valueChanged)
         tableView.refreshControl = tweetRefreshControl
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 120
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        loadTweets()
     }
 
     @IBAction func onLogout(_ sender: Any) {
@@ -32,9 +40,37 @@ class HomeTableViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "tweetCell", for: indexPath) as! TweetCell
         let tweet = tweetArray[indexPath.row]
+
         let user = tweet["user"] as! NSDictionary
         cell.userNameLabel.text = user["name"] as? String
-        cell.tweetContent.text = tweet["text"] as? String
+
+        let tweetContent = tweet["text"] as? String
+        let attributedTweetContentString = NSMutableAttributedString(string: tweetContent ?? "")
+
+        let entity = tweet["entities"] as! NSDictionary
+        let mediaEntities = entity["media"] as? NSArray
+
+        if let mediaEntities = mediaEntities {
+
+            for image in mediaEntities {
+                let imageUrlString = (image as! NSDictionary)["media_url_https"] as? String
+                let textAttachment = NSTextAttachment()
+                let imageUrl = URL(string: (imageUrlString)!)
+                let imageData = try? Data(contentsOf: imageUrl!)
+
+                if let imageData = imageData {
+                    textAttachment.image = UIImage(data: imageData)
+                }
+
+                let oldWidth = textAttachment.image!.size.width;
+                let scaleFactor = oldWidth / (self.view.frame.size.width - 10);
+                textAttachment.image = UIImage(cgImage: textAttachment.image!.cgImage!, scale: scaleFactor, orientation: .up)
+                let attrStringWithImage = NSAttributedString(attachment: textAttachment)
+                attributedTweetContentString.append(attrStringWithImage)
+            }
+        }
+
+        cell.tweetContent.attributedText = attributedTweetContentString
 
         let imageUrl = URL(string: (user["profile_image_url_https"] as? String)!)  
 
@@ -42,6 +78,10 @@ class HomeTableViewController: UITableViewController {
         if let imageData = data {
             cell.profileImageView.image = UIImage(data: imageData)
         }
+
+        cell.setFavorite(tweet["favorited"] as! Bool)
+        cell.setRetweeted(tweet["retweeted"] as! Bool)
+        cell.tweetId = tweet["id"] as! Int
 
         return cell
     }
